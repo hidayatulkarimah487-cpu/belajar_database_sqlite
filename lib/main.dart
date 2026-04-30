@@ -107,8 +107,13 @@ class _ListUserDataPageState extends State<ListUserDataPage> {
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _umurCtrl = TextEditingController();
 
-  final Color primaryBlue = Colors.lightBlue;
-  final Color softBlue = Colors.lightBlueAccent.withOpacity(0.2);
+  final Color primaryBlue = const Color.fromARGB(255, 255, 109, 177);
+  final Color softBlue = const Color.fromARGB(
+    255,
+    255,
+    109,
+    177,
+  ).withOpacity(0.2);
 
   List<UserModel> userList = [];
 
