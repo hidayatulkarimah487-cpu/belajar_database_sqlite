@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   runApp(const MainApp());
@@ -11,6 +12,68 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(home: ListUserDataPage());
+  }
+}
+
+class DatabaseHelper {
+  static Database? _database;
+
+  static Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB();
+    return _database!;
+  }
+
+  static Future<Database?> _initDB() async {
+    String path = p.join(await getDatabasesPath(), "user_db.db");
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: (db, version) {
+        return db.execute(
+          "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, nama TEXT, umur INTEGER)",
+        );
+      },
+    );
+  }
+
+  //create
+  static Future<int> insertData(UserModel userModel) async {
+    final db = await database;
+    Map<String, dynamic> user = userModel.toJson();
+
+    return await db.insert(
+      "users",
+      user,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  //read
+  static Future<List<UserModel>> getData() async {
+    final db = await database;
+    List<Map<String, Object?>> result = await db.query("users");
+
+    List<UserModel> users = result.map((userMap) {
+      return UserModel.fromJson(userMap);
+    }).toList();
+
+    return users;
+  }
+
+  //update
+  static Future<int> updateData(int id, UserModel userModel) async {
+    final db = await database;
+    var user = userModel.toJson()..remove("id");
+
+    return await db.update("users", user, where: "id=?", whereArgs: [id]);
+  }
+
+  //delete
+  static Future<int> deleteData(int id) async {
+    final db = await database;
+    return await db.delete("users", where: "id=?", whereArgs: [id]);
   }
 }
 
@@ -27,18 +90,43 @@ class UserModel {
   int umur = 0;
 
   UserModel(this.id, {required this.nama, required this.umur});
+
+  // convert dari map / hashmap ke model
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(json["id"], nama: json["nama"], umur: json["umur"]);
+  }
+
+  // convert dari model ke map
+
+  Map<String, dynamic> toJson() {
+    return {"id": id, "nama": nama, "umur": umur};
+  }
 }
 
 class _ListUserDataPageState extends State<ListUserDataPage> {
   final TextEditingController _nameCtrl = TextEditingController();
   final TextEditingController _umurCtrl = TextEditingController();
 
-  List<UserModel> userList = [
-    UserModel(1, nama: "Hidaaa", umur: 19),
-    UserModel(2, nama: "Rashya", umur: 7),
-    UserModel(3, nama: "Frieda", umur: 17),
-    UserModel(4, nama: "Lilia", umur: 16),
-  ];
+  final Color primaryBlue = Colors.lightBlue;
+  final Color softBlue = Colors.lightBlueAccent.withOpacity(0.2);
+
+  List<UserModel> userList = [];
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+
+    _reloadData();
+  }
+
+  void _reloadData() async {
+    var users = await DatabaseHelper.getData();
+
+    setState(() {
+      userList = users;
+    });
+  }
 
   void _form(int? id) {
     if (id != null) {
@@ -54,7 +142,7 @@ class _ListUserDataPageState extends State<ListUserDataPage> {
       context: context,
       isScrollControlled: true,
       builder: (context) => Padding(
-        padding: EdgeInsetsGeometry.fromLTRB(
+        padding: EdgeInsets.fromLTRB(
           20,
           20,
           20,
@@ -63,18 +151,75 @@ class _ListUserDataPageState extends State<ListUserDataPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // INPUT NAMA
             TextField(
               controller: _nameCtrl,
-              decoration: InputDecoration(hintText: "Nama"),
+              decoration: InputDecoration(
+                hintText: "Nama",
+                filled: true,
+                fillColor: softBlue,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
+            const SizedBox(height: 10),
+
+            // INPUT UMUR
             TextField(
               controller: _umurCtrl,
-              decoration: InputDecoration(hintText: "Umur"),
+              decoration: InputDecoration(
+                hintText: "Umur",
+                filled: true,
+                fillColor: softBlue,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
               keyboardType: TextInputType.number,
             ),
+            const SizedBox(height: 15),
+
+            // BUTTON SIMPAN
             ElevatedButton(
-              onPressed: () =>
-                  _save(id, _nameCtrl.text, int.parse(_umurCtrl.text)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryBlue.withOpacity(0.7),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () {
+                if (_nameCtrl.text.isEmpty || _umurCtrl.text.isEmpty) return;
+
+                _save(id, _nameCtrl.text, int.parse(_umurCtrl.text));
+              },
               child: Text(id == null ? "Tambah" : "Perbaharui"),
             ),
           ],
@@ -83,21 +228,15 @@ class _ListUserDataPageState extends State<ListUserDataPage> {
     );
   }
 
-  void _save(int? id, String nama, int umur) {
+  void _save(int? id, String nama, int umur) async {
+    var newUser = UserModel(null, nama: nama, umur: umur);
     if (id != null) {
-      var user = userList.firstWhere((data) => data.id == id);
-      setState(() {
-        user.nama = nama;
-        user.umur = umur;
-      });
+      await DatabaseHelper.updateData(id, newUser);
     } else {
-      var nextId = userList.length + 1;
-      var newUser = UserModel(nextId, nama: nama, umur: umur);
-      setState(() {
-        userList.add(newUser);
-      });
+      await DatabaseHelper.insertData(newUser);
     }
 
+    _reloadData();
     Navigator.pop(context);
   }
 
@@ -105,23 +244,45 @@ class _ListUserDataPageState extends State<ListUserDataPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("Konfirmasi Hapus"),
-        content: Text("Apakah anda yakin ingin menghapus data ini?"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("Konfirmasi Hapus"),
+        content: const Text("Apakah anda yakin ingin menghapus data ini?"),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(backgroundColor: softBlue),
             onPressed: () {
               Navigator.pop(context);
             },
-            child: Text("Batal"),
+            child: Text("Batal", style: TextStyle(color: primaryBlue)),
           ),
           TextButton(
-            onPressed: () {
-              setState(() => userList.removeWhere((data) => data.id == id));
+            style: TextButton.styleFrom(
+              backgroundColor: primaryBlue.withOpacity(0.7),
+            ),
+            onPressed: () async {
+              await DatabaseHelper.deleteData(id);
+              _reloadData();
               Navigator.pop(context);
             },
-            child: Text("Hapus"),
+            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _actionButton(IconData icon, VoidCallback onPressed) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: TextButton(
+        style: TextButton.styleFrom(
+          backgroundColor: softBlue,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        onPressed: onPressed,
+        child: Icon(icon, color: primaryBlue),
       ),
     );
   }
@@ -129,30 +290,28 @@ class _ListUserDataPageState extends State<ListUserDataPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("User List")),
+      appBar: AppBar(
+        title: const Text("User List"),
+        backgroundColor: primaryBlue.withOpacity(0.7),
+      ),
       body: ListView.builder(
         itemCount: userList.length,
-        itemBuilder: (xt, i) => ListTile(
+        itemBuilder: (context, i) => ListTile(
           title: Text(userList[i].nama),
           subtitle: Text("umur: ${userList[i].umur} tahun"),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextButton(
-                onPressed: () => _form(userList[i].id),
-                child: Icon(Icons.edit),
-              ),
-              TextButton(
-                onPressed: () => _delete(userList[i].id!),
-                child: Icon(Icons.delete),
-              ),
+              _actionButton(Icons.edit, () => _form(userList[i].id)),
+              _actionButton(Icons.delete, () => _delete(userList[i].id!)),
             ],
           ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: primaryBlue.withOpacity(0.7),
         onPressed: () => _form(null),
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
